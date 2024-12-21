@@ -12,6 +12,18 @@ import matplotlib.pyplot as plt1
 import numpy as np 
 import tkinter as tk
 from tkinter import messagebox, ttk, scrolledtext
+#GLOBAL Vrriables
+global_BTTH_DF = None
+global_HS_DaTinhKPI_DF = None
+global_KPI_DF = None
+global_CB_KoKPI_DF = None
+global_KPI_TungCB_DF = None
+global_BTTD_DF = None
+global_HS_MienNam_DF = None
+global_df_MienNam_Template_chuan = None
+global_df_File_D99_MEM, global_df_HS_Khong_tinh_KPI, global_df_File_D99_BSCT, global_df_HS_KHCN = None, None, None, None
+global_File_ALL_DLBT_ChuanTemp = None
+
 
 #ghi chú
 #df_CBBT_MienNam = KPI_DF
@@ -20,11 +32,10 @@ from tkinter import messagebox, ttk, scrolledtext
 ##Combine_DF = HS_CanKiemTra_DF
 
 def Processing_PBI_WEB_data():
-    #Chạy hàm chọn HR_info
-    display_message("--Chọn file Thông tin nhân sự - HR_Miền Nam--","")
-    KPI_DF, CB_KoKPI_DF, KPI_TungCB_DF = Hr_info()
-    display_message("--Chọn Dữ liệu báo cáo lấy từ PBI WEB và Dữ liệu HS đã tính KPI--","")
-    BTTH_DF, HS_DaTinhKPI_DS = select_excel_files()
+    KPI_DF = global_KPI_DF
+    CB_KoKPI_DF = global_CB_KoKPI_DF
+    BTTH_DF = global_BTTH_DF
+    HS_DaTinhKPI_DF = global_HS_DaTinhKPI_DF
     BTTH_MienNam_DF = BTTH_DF.unique(subset='SO_TO_TRINH')
     #Chuyển BTTH_DF lọc danh sách miền nam
     BTTH_MienNam_DF = BTTH_MienNam_DF.filter(pl.col('CAN_BO_BT').is_in(KPI_DF['Họ và tên']))
@@ -43,11 +54,11 @@ def Processing_PBI_WEB_data():
     )
 
     # Step 4: Filter for duplicates from the previous month
-    df_duplicate_So_Hoso_PreviousMonth = BTTH_MienNam_DF.filter(pl.col('SO_HS').is_in(HS_DaTinhKPI_DS['SO_HS']))
+    df_duplicate_So_Hoso_PreviousMonth = BTTH_MienNam_DF.filter(pl.col('SO_HS').is_in(HS_DaTinhKPI_DF['SO_HS']))
 
     # Step 5: Merge to get the third column value from df_HS_DaTinhKPI
     df_duplicate_So_Hoso_PreviousMonth = df_duplicate_So_Hoso_PreviousMonth.join(
-        HS_DaTinhKPI_DS[['SO_HS', 'NOTE']],
+        HS_DaTinhKPI_DF[['SO_HS', 'NOTE']],
         on='SO_HS',
         how='left'
     )
@@ -143,11 +154,9 @@ def Processing_PBI_WEB_data():
     hsMem = ['hsmem', 'hscung']
     filter_condition = pl.col("HAU_QUA").str.to_lowercase().str.contains(hsMem[0].lower())  # Start with the first condition
 
-    # Add the remaining conditions using a loop
     for x in hsMem[1:]:
         filter_condition |= pl.col("HAU_QUA").str.to_lowercase().str.contains(x.lower())
-
-    # Filter the DataFrame based on the constructed condition
+    filter_condition &= pl.col("SO_HS").str.contains("D99", case=False)
     df_HsMem = BTTH_MienNam_DF.filter(filter_condition)
 
     #Create DF ALL HS MIỀN NAM CHUẨN TEMPLATE
@@ -202,15 +211,397 @@ def Processing_PBI_WEB_data():
     
 
 def calculate_btth_data():
-    BTTD_DF = BTTD_Folder()
-    df_MienNam_Template_chuan, df_File_D99_MEM, df_HS_Khong_tinh_KPI, df_File_D99_BSCT, df_HS_KHCN = select_files_BTTH()
+    df_HS_Khong_tinh_KPI = global_df_HS_Khong_tinh_KPI
+    File_D99_BSCT = global_df_File_D99_BSCT
+    df_HS_KHCN = global_df_HS_KHCN
+    df_File_D99_MEM = global_df_File_D99_MEM
+    df_BTTD = global_BTTD_DF
+    df_MienNam_Template_chuan = global_df_MienNam_Template_chuan
+    df_MienNam_Template_chuan_pandas = df_MienNam_Template_chuan.to_pandas()
+
+    holidays = pd.to_datetime(['2024-09-03', '2024-09-02', '2024-05-01', '2024-04-30', 
+                            '2024-04-29', '2024-04-18', '2024-02-14', '2024-02-13', 
+                            '2024-02-12', '2024-02-11', '2024-02-10', '2024-02-09', 
+                            '2024-02-08', '2024-01-01', '2023-09-04', '2023-09-03', 
+                            '2023-09-02', '2023-09-01', '2023-05-03', '2023-05-02', 
+                            '2023-05-01', '2023-04-30', '2023-04-29', '2023-01-26', 
+                            '2023-01-25', '2023-01-24', '2023-01-23', '2023-01-22', 
+                            '2023-01-21', '2023-01-20', '2023-01-02', '2023-01-01', 
+                            '2023-01-02' ])
+
+    # Create a custom business day calendar excluding weekends and holidays
+    custom_bday = CustomBusinessDay(holidays=holidays)
+
+    # Convert date columns to datetime if they're not already
+    date_columns = ['Ngày yêu cầu', 'Ngày duyệt', 'Ngày bổ sung HS', 'Ngày gửi TBBT']
+    for col in date_columns:
+        df_MienNam_Template_chuan_pandas[col] = pd.to_datetime(df_MienNam_Template_chuan_pandas[col], errors='coerce')
+
+    # Function to calculate network days
+    def calculate_network_days(start_date, end_date):
+        if pd.isnull(start_date) or pd.isnull(end_date):
+            return None
+        return len(pd.date_range(start=start_date, end=end_date, freq=custom_bday)) - 1
+
+    # Calculate new columns
+    df_MienNam_Template_chuan_pandas['1_NgàyYêuCầu_NgàyDuyệt'] = df_MienNam_Template_chuan_pandas.apply(
+        lambda row: calculate_network_days(row['Ngày yêu cầu'], row['Ngày duyệt']), axis=1)
+
+    df_MienNam_Template_chuan_pandas['2_NgàyYêuCầu_NgàyGửiTBBT'] = df_MienNam_Template_chuan_pandas.apply(
+        lambda row: calculate_network_days(row['Ngày yêu cầu'], row['Ngày gửi TBBT']), axis=1)
+
+    df_MienNam_Template_chuan_pandas['3_NgàyBổSungHS_NgàyDuyệt'] = df_MienNam_Template_chuan_pandas.apply(
+        lambda row: calculate_network_days(row['Ngày bổ sung HS'], row['Ngày duyệt']), axis=1)
+
+    df_MienNam_Template_chuan_pandas['4_NgàyBổSungHS_NgàyGửiTBBT'] = df_MienNam_Template_chuan_pandas.apply(
+        lambda row: calculate_network_days(row['Ngày bổ sung HS'], row['Ngày gửi TBBT']), axis=1)
+
+    # Function to replace negative values with 9999
+    def replace_negative(value):
+        return 9999 if value is not None and value < 0 else value
+
+    # Apply the replace_negative function to the specified columns
+    columns_to_check = [
+        '1_NgàyYêuCầu_NgàyDuyệt',
+        '2_NgàyYêuCầu_NgàyGửiTBBT',
+        '3_NgàyBổSungHS_NgàyDuyệt',
+        '4_NgàyBổSungHS_NgàyGửiTBBT'
+    ]
+
+    for col in columns_to_check:
+        df_MienNam_Template_chuan_pandas[col] = df_MienNam_Template_chuan_pandas[col].apply(replace_negative)
+
+    # Function to determine status
+    def determine_status(row):
+        if pd.isnull(row['3_NgàyBổSungHS_NgàyDuyệt']):
+            if (row['1_NgàyYêuCầu_NgàyDuyệt'] is not None and row['1_NgàyYêuCầu_NgàyDuyệt'] < 8) or \
+            (row['2_NgàyYêuCầu_NgàyGửiTBBT'] is not None and row['2_NgàyYêuCầu_NgàyGửiTBBT'] < 9):
+                return "Đúng hạn"
+            else:
+                return "Trễ hạn"
+        else:
+            if (row['3_NgàyBổSungHS_NgàyDuyệt'] is not None and row['3_NgàyBổSungHS_NgàyDuyệt'] < 6) or \
+            (row['4_NgàyBổSungHS_NgàyGửiTBBT'] is not None and row['4_NgàyBổSungHS_NgàyGửiTBBT'] < 7):
+                return "Đúng hạn"
+            else:
+                return "Trễ hạn"
+
+    def calculate_working_days(row):
+        if pd.isnull(row['Ngày bổ sung HS']):
+            if pd.isnull(row['Ngày gửi TBBT']):
+                return row['1_NgàyYêuCầu_NgàyDuyệt']
+            else:
+                return row['2_NgàyYêuCầu_NgàyGửiTBBT']
+        else:
+            if pd.isnull(row['Ngày gửi TBBT']):
+                return row['3_NgàyBổSungHS_NgàyDuyệt']
+            else:
+                return row['4_NgàyBổSungHS_NgàyGửiTBBT']
+
+
+    # Add 5_Status column
+    df_MienNam_Template_chuan_pandas['5_Status'] = df_MienNam_Template_chuan_pandas.apply(determine_status, axis=1)
+    df_MienNam_Template_chuan_pandas['Số_Ngày_Làm_việc'] = df_MienNam_Template_chuan_pandas.apply(calculate_working_days, axis=1)
+
+    df_MienNam_Template_chuan = pl.DataFrame(df_MienNam_Template_chuan_pandas)
+    # Thêm cột 'Loại HS'
+    df_MienNam_Template_chuan = df_MienNam_Template_chuan.with_columns(
+        pl.when(pl.col("Nguyên nhân tổn thất") == "Ngoại trú").then(1)
+        .when(pl.col("Nguyên nhân tổn thất") == "Nội trú").then(2)
+        .when(pl.col("Nguyên nhân tổn thất") == "Sinh mạng").then(3)
+        .otherwise(None).alias("Loại HS")
+    )
     
+    
+    so_hsmem_set = set(df_File_D99_MEM['SO_HS'].to_list())
+
+    # Thêm cột 'HS mềm'
+    df_MienNam_Template_chuan = df_MienNam_Template_chuan.with_columns([
+        pl.when(pl.col("Số GYCTT").is_in(so_hsmem_set))
+        .then(pl.lit("HSMEM"))
+        .otherwise(pl.lit(None))
+        .alias("HS mềm")
+    ])
+
+    # Thêm cột 'QLHA'
+    df_MienNam_Template_chuan = df_MienNam_Template_chuan.with_columns(
+        pl.when(pl.col("Hậu quả").str.contains("#QLHA", literal=True))
+        .then(pl.lit("QLHA"))
+        .otherwise(pl.lit(None))
+        .alias("QLHA")
+    )
+
+    # Thêm cột 'MaLoaiHS'
+    df_MienNam_Template_chuan = df_MienNam_Template_chuan.with_columns(
+        pl.col("Số GYCTT").str.slice(3, 3).alias("MaLoaiHS")
+    )
+
+        # Thêm cột 'CoBSCT'
+    so_hs_BSCT_set = set(File_D99_BSCT["Giấy YCTT"].to_list())
+    df_MienNam_Template_chuan = df_MienNam_Template_chuan.with_columns(
+        pl.when(pl.col("Số GYCTT").is_in(so_hs_BSCT_set))
+        .then(pl.lit("Có BSCT"))
+        .otherwise(pl.lit(None))
+        .alias("CoBSCT")
+    )
+
+    # Thêm cột 'BTTD'
+    so_hs_BTTD_set = set(df_BTTD["Số TTBT"].to_list())
+    df_MienNam_Template_chuan = df_MienNam_Template_chuan.with_columns(
+        pl.when(pl.col("Số hồ sơ tờ trình bồi thường").is_in(so_hs_BTTD_set))
+        .then(pl.lit("BTTĐ"))
+        .otherwise(pl.lit(None))
+        .alias("BTTD")
+    )
+
+    # Tạo điều kiện và thêm cột 'HS IP bị giảm tỉ lệ quy đổi'
+    condition = (
+        (pl.col("Số tiền bồi thường") == 0)
+        & (pl.col("Loại HS") == 2)
+        & (
+            pl.col("Giải quyết").str.to_lowercase().str.contains("hết hạn mức")
+            | pl.col("Giải quyết").str.to_lowercase().str.contains("không bổ sung")
+            | pl.col("Giải quyết").str.to_lowercase().str.contains("hạn bổ sung")
+        )
+    )
+    df_MienNam_Template_chuan = df_MienNam_Template_chuan.with_columns(
+        pl.when(condition).then(pl.lit("X")).otherwise(pl.lit(None)).alias("HS IP bị giảm tỉ lệ quy đổi")
+    )
+
+    # Thêm cột 'Hồ sơ không tính KPI'
+    df_MienNam_Template_chuan = df_MienNam_Template_chuan.with_columns(
+        pl.when(
+            pl.col("Số hồ sơ tờ trình bồi thường").is_in(
+                df_HS_Khong_tinh_KPI["Số tờ trình bồi thường"].to_list()
+            )
+        )
+        .then(pl.lit("X"))
+        .otherwise(pl.lit(None))
+        .alias("Hồ sơ không tính KPI")
+    )
+    
+    # Xóa cột không cần thiết
+    df_MienNam_Template_chuan = df_MienNam_Template_chuan.drop(
+        ["1_NgàyYêuCầu_NgàyDuyệt", "2_NgàyYêuCầu_NgàyGửiTBBT", "3_NgàyBổSungHS_NgàyDuyệt", "4_NgàyBổSungHS_NgàyGửiTBBT"]
+    )    
+
+    # Tạo điều kiện và thêm cột 'HS IP bị giảm tỉ lệ quy đổi'
+    # Lọc bỏ các hàng có 'Hồ sơ không tính KPI' là 'X'
+    df_MienNam_Template_chuan = df_MienNam_Template_chuan.filter(
+        pl.col("Hồ sơ không tính KPI").is_null()
+    )
+    print(df_MienNam_Template_chuan)
+    # Export the DataFrame to an Excel file
+    df_MienNam_Template_chuan_pandas = df_MienNam_Template_chuan.to_pandas()
+    file_path = select_file_path("BC_BTTH_Processed.xlsx")  # Gọi hàm chọn nơi lưu file, bạn có thể truyền tên file mặc định
+    if file_path:  # Kiểm tra xem người d�ng có chọn file không
+        dataframes = [df_MienNam_Template_chuan_pandas,df_HS_KHCN.to_pandas(),df_HS_Khong_tinh_KPI.to_pandas()]
+        sheet_names = ["BTTH_MienNam_Calculated","HS_KHCN","HS_Khong_tinh_KPI"]
+        export_to_excel(dataframes, sheet_names, file_path)  # Gọi hàm xuất dữ liệu
+        display_message("--> Dữ liệu đã được tính toán và xuất ra file Excel BC_BTTH_Processed.xlsx.", "Vui lòng kiểm tra file Excel đã lưu.")  # Hiển thị thông báo
+    print(df_MienNam_Template_chuan)
 
 
 def kpi_report():
     # Example KPI report
-    report = "KPI Report: All metrics are green."
-    display_message("KPI Report has been generated.", report)
+    df_HS_KHCN = global_df_HS_KHCN
+    df_HS_Khong_tinh_KPI = global_df_HS_Khong_tinh_KPI
+    File_ALL_DLBT_ChuanTemp = global_File_ALL_DLBT_ChuanTemp
+    KPI_DF = global_KPI_DF
+    
+    ##CÁC FUNCTION COUNT HỒ SƠ -----------------COUNT NGOẠI TRÚ---------------------------------------------------------
+    counts = File_ALL_DLBT_ChuanTemp.group_by("Cán bộ giải quyết bồi thường").agg([
+        # Ngoại trú - giữ nguyên
+        ((pl.col("MaLoaiHS").is_in(["D31", "D98", "D33", "D15"])) & 
+        (pl.col("Loại HS") == 1) & 
+        (pl.col("QLHA").is_null()) & 
+        (pl.col("BTTD").is_null()) & 
+        (pl.col("Hồ sơ không tính KPI").is_null())
+        ).sum().alias("Ngoại trú"),
+        
+        # Nội trú - giữ nguyên
+        ((pl.col("MaLoaiHS").is_in(["D31", "D98", "D33", "D15"])) & 
+        (pl.col("Loại HS") == 2) & 
+        (pl.col("QLHA").is_null()) & 
+        (pl.col("Hồ sơ không tính KPI").is_null())
+        ).sum().alias("Nội trú"),
+
+        # QLHA ngoai tru - từ code đính kèm
+        ((pl.col("MaLoaiHS").is_in(["D31", "D33", "D15"])) &
+        (pl.col("Loại HS") == 1) &
+        (pl.col("QLHA") == "QLHA") &
+        (pl.col("Hồ sơ không tính KPI").is_null())
+        ).sum().alias("QLHA Ngoại trú"),
+
+        # QLHA noi tru - từ code đính kèm
+        ((pl.col("MaLoaiHS").is_in(["D31", "D33", "D15"])) &
+        (pl.col("Loại HS") == 2) &
+        (pl.col("QLHA") == "QLHA") &
+        (pl.col("Hồ sơ không tính KPI").is_null())
+        ).sum().alias("QLHA Nội trú"),
+
+        # Tu vong - từ code đính kèm 
+        ((pl.col("Loại HS") == 3) &
+        (pl.col("Hồ sơ không tính KPI").is_null())
+        ).sum().alias("Tử vong"),
+
+        # D99 mềm BS OP - từ code đính kèm
+        ((pl.col("Hồ sơ không tính KPI").is_null()) &
+        (pl.col("Loại HS") == 1) &
+        (pl.col("MaLoaiHS") == "D99") &
+        (pl.col("HS mềm") == "HSMEM") &
+        (pl.col("CoBSCT") == "Có BSCT")
+        ).sum().alias("D99 BSCT OP"),
+
+        # D99 mềm bước 2 OP - từ code đính kèm
+        ((pl.col("Hồ sơ không tính KPI").is_null()) &
+        (pl.col("Loại HS") == 1) &
+        (pl.col("MaLoaiHS") == "D99") &
+        (pl.col("HS mềm") == "HSMEM") &
+        (pl.col("BTTD").is_null())
+        ).sum().alias("D99 mềm B2 OP"),
+
+        # D99 cứng OP - từ code đính kèm
+        ((pl.col("Hồ sơ không tính KPI").is_null()) &
+        (pl.col("Loại HS") == 1) &
+        (pl.col("MaLoaiHS") == "D99") &
+        (pl.col("HS mềm").is_null()) &
+        (pl.col("BTTD").is_null())
+        ).sum().alias("D99 Cứng OP"),
+
+        # D99 mềm BS IP - từ code đính kèm
+        ((pl.col("Hồ sơ không tính KPI").is_null()) &
+        (pl.col("Loại HS") == 2) &
+        (pl.col("MaLoaiHS") == "D99") &
+        (pl.col("HS mềm") == "HSMEM") &
+        (pl.col("CoBSCT") == "Có BSCT")
+        ).sum().alias("D99 BSCT IP"),
+
+        # D99 mềm bước 2 IP - từ code đính kèm
+        ((pl.col("Hồ sơ không tính KPI").is_null()) &
+        (pl.col("Loại HS") == 2) &
+        (pl.col("MaLoaiHS") == "D99") &
+        (pl.col("HS mềm") == "HSMEM")
+        ).sum().alias("D99 mềm B2 IP"),
+
+        # D99 cứng IP - từ code đính kèm
+        ((pl.col("Hồ sơ không tính KPI").is_null()) &
+        (pl.col("Loại HS") == 2) &
+        (pl.col("MaLoaiHS") == "D99") &
+        (pl.col("HS mềm").is_null())
+        ).sum().alias("D99 Cứng IP"),
+
+        # BTTD D31 - từ code đính kèm
+        ((pl.col("Hồ sơ không tính KPI").is_null()) &
+        (pl.col("Loại HS") == 1) &
+        (pl.col("MaLoaiHS").is_in(["D31", "D98", "D33", "D15"])) &
+        (pl.col("BTTD") == "BTTĐ") &
+        (pl.col("QLHA").is_null())
+        ).sum().alias("BTTD D31"),
+
+        # BTTD D99 - từ code đính kèm
+        ((pl.col("Hồ sơ không tính KPI").is_null()) &
+        (pl.col("Loại HS") == 1) &
+        (pl.col("MaLoaiHS") == "D99") &
+        (pl.col("BTTD") == "BTTĐ")
+        ).sum().alias("BTTD D99"),
+
+        # Không tính KPI - từ code đính kèm
+        (pl.col("Hồ sơ không tính KPI") == "X").sum().alias("HS_Khong_Tinh_KPI"),
+
+        # Giảm tỉ lệ quy đổi - từ code đính kèm
+        ((pl.col("Hồ sơ không tính KPI").is_null()) &
+        (pl.col("HS IP bị giảm tỉ lệ quy đổi") == "X") &
+        (pl.col("Loại HS") == 2) &
+        (pl.col("Số tiền bồi thường") == 0)
+        ).sum().alias("HS Giảm tỉ lệ quy đổi"),
+
+        # Tổng số hồ sơ - từ code đính kèm
+        pl.col("Số hồ sơ tờ trình bồi thường")
+        .filter(pl.col("Hồ sơ không tính KPI").is_null())
+        .count().alias("Tổng số hồ sơ"),
+
+        # Số hồ sơ đúng hạn - từ code đính kèm
+        pl.col("Số hồ sơ tờ trình bồi thường")
+        .filter((pl.col("Hồ sơ không tính KPI").is_null()) &
+                (pl.col("5_Status") == "Đúng hạn"))
+        .count().alias("SỐ hồ sơ đúng hạn")
+    ])
+    # Tính toán riêng cho df_HS_KHCN
+    counts_khcn = df_HS_KHCN.group_by("Cán bộ BT").agg([
+        # KHCN
+        (pl.col("Nghiệp vụ").str.to_lowercase().is_in(["khn", "ats", "pai", "ytk"]))
+        .sum().alias("KHCN"),
+        
+        # PA
+        (pl.col("Nghiệp vụ").is_in(["PA"]))
+        .sum().alias("PA"),
+        
+        # Du lịch
+        (pl.col("Nghiệp vụ").str.to_lowercase().is_in(["fle", "dqt", "ydl"]))
+        .sum().alias("Du lịch"),
+        
+        # Du lịch ECEP  
+        (pl.col("Nghiệp vụ").str.to_lowercase().is_in(["ecep"]))
+        .sum().alias("Du lịch ECEP"),
+        
+        # Kcare
+        (pl.col("Nghiệp vụ").str.to_lowercase().is_in(["kcare"]))
+        .sum().alias("Kcare")
+    ])
+    # Ghép nối với KPI_DF - giữ nguyên
+    KPI_DF = KPI_DF.join(
+        counts,
+        left_on="Họ và tên",
+        right_on="Cán bộ giải quyết bồi thường",
+        how="left"
+    ).join(
+        counts_khcn,
+        left_on="Họ và tên",
+        right_on="Cán bộ BT", 
+        how="left"
+    )
+    KPI_DF = KPI_DF.with_columns(
+        pl.lit(0).alias("IJ Ngoại trú"),pl.lit(0).alias("IJ Nội trú"),pl.lit(0).alias("Ngoại giao"),
+        pl.lit(0).alias("CI37"),pl.lit(0).alias("D99 B1 OP"),pl.lit(0).alias("D99 B1 OP"),pl.lit(0).alias("D99 B1 IP"),
+        pl.lit(0).alias("HS Hỗ trợ")
+    )
+    
+    ##Sắp xếp cột lại 
+    KPI_DF = KPI_DF.select([
+        "STT",
+        "Họ và tên",
+        "Mã nhân viên",
+        "Tháng",
+        "Năm",
+        "Ngoại trú",
+        "Nội trú",
+        "QLHA Ngoại trú",
+        "QLHA Nội trú",
+        "Tử vong",
+        ##MỆT NGỦ
+
+
+        pl.all().exclude(["Họ và tên", "Ngoại trú"])
+    ])
+
+    def export_to_excel(df, default_filename="KPI_Report.xlsx"):
+        root = tk.Tk()
+        root.withdraw()
+        file_path = filedialog.asksaveasfilename(
+            defaultextension=".xlsx",
+            filetypes=[("Excel files", "*.xlsx")],
+            initialfile=default_filename
+        )
+        if file_path:
+            df.write_excel(file_path)
+        root.destroy()
+
+    # Sử dụng hàm
+    export_to_excel(KPI_DF, "KPI_Report.xlsx")
+    
+
+
 
 def plot():
     # Example plot message
@@ -223,7 +614,7 @@ def plot():
     display_message("Plot has been created.", "Plot data: [1, 2, 3, 4]")
 
 def display_message(message, data):
-    output_area.insert(tk.END, message + "\n\n")  # Display message
+    output_area.insert(tk.END, message + "\n")  # Display message
     
     if isinstance(data, pl.DataFrame):
         output_area.insert(tk.END, data.to_string() + "\n")  # Display DataFrame contents
@@ -299,7 +690,7 @@ def Hr_info():
 
     return KPI_DF, CB_KoKPI_DF, KPI_TungCB_DF
 
-def select_excel_files():
+def select_excel_PBI_file():
     # Tạo một cửa sổ Tkinter ẩn
     root = tk.Tk()
     root.withdraw()  # Ẩn cửa sổ chính
@@ -332,16 +723,16 @@ def select_files_BTTH():
     display_message("--Chọn file BTTH_MienNam--","")
     file1_path = filedialog.askopenfilename(title="Chọn file 1 (có sheet BTTH_MienNam)", filetypes=[("Excel files", "*.xlsx;*.xls")])
     if not file1_path:
-        print("Không có file 1 nào được chọn.")
+        display_message("Không có file BTTH_MienNam nào được chọn.", "")
         return None, None, None, None, None
     # Đọc sheet BTTH_MienNam từ file 1
     df_MienNam_Template_chuan = pl.read_excel(file1_path, sheet_name='BTTH_MienNam')
 
     # Chọn file 2
-    display_message("--Chọn file Các loại HS KHÁC--","")
+    display_message("--Chọn file Các loại HS_KHÁC--","")
     file2_path = filedialog.askopenfilename(title="Chọn file 2 (có các sheet D99_MEM, HS_KhongTinhKPI, D99_BSCT, KHCN)", filetypes=[("Excel files", "*.xlsx;*.xls")])
     if not file2_path:
-        print("Không có file 2 nào được chọn.")
+        display_message("Không có file HS_KHÁC nào được chọn.", "")
         return None, None, None, None, None
     # Đọc các sheet từ file 2
     df_File_D99_MEM = pl.read_excel(file2_path, sheet_name='D99_MEM')
@@ -361,7 +752,7 @@ def select_files_BTTH():
     return df_MienNam_Template_chuan, df_File_D99_MEM, df_HS_Khong_tinh_KPI, df_File_D99_BSCT, df_HS_KHCN
      # Hiển thị thông báo
 
-def select_file_path(default_name="output.xlsx"):
+def select_file_path(default_name="output.xlsx"): ##XUẤT FILE EXCEL
     root = tk.Tk()
     root.withdraw()  # Ẩn cửa sổ chính của tkinter
     file_path = filedialog.asksaveasfilename(title="Chọn nơi lưu file", defaultextension=".xlsx", filetypes=[("Excel Files", "*.xlsx")], initialfile=default_name)
@@ -383,12 +774,152 @@ def export_to_excel(dataframes, sheet_names, file_path=None):
 
 
 
+def add_file_HR():
+    global global_KPI_DF, global_CB_KoKPI_DF, global_KPI_TungCB_DF  # Khai báo biến toàn cục
+    # Tạo một cửa sổ Tkinter ẩn
+    root = tk.Tk()
+    root.withdraw()  # Ẩn cửa sổ chính
+    display_message("--> Chọn file Thông tin nhân sự - HR_Miền Nam","")
+    # Chọn file HR_Info
+    global_KPI_DF, global_CB_KoKPI_DF, global_KPI_TungCB_DF = Hr_info()
+    if global_KPI_DF.is_empty() or global_CB_KoKPI_DF.is_empty() or global_KPI_TungCB_DF.is_empty():
+        print("Không có file nào được chọn.")
+        return
+    else:
+        label0.config(text="1. HR_File Loaded!")
+        output_area.insert(tk.END, "--> File HR_Info: Sheet KPI, CB_Khong_Tinh_KPI, KPI_Tung_CB loaded!\n\n")
+
+def add_file1():
+    # Add your existing file adding logic here
+    global global_BTTH_DF, global_HS_DaTinhKPI_DF# Khai báo biến toàn cục
+    display_message("--> Chọn Dữ liệu báo cáo lấy từ PBI WEB & Dữ liệu HS đã tính KPI","")
+    global_BTTH_DF, global_HS_DaTinhKPI_DF = select_excel_PBI_file()
+    if global_BTTH_DF.is_empty() or global_HS_DaTinhKPI_DF.is_empty():
+        print("Không có dữ liệu nào được chọn.")
+        return
+    else:
+        label1.config(text="1. HR_File, PBI_WEB Loaded!")
+        output_area.insert(tk.END, "--> File PBI_WEB, File HS đã tính KPI loaded!\n\n")
+    update_button_states()    
+
+def add_file2():
+    # Add your existing file adding logic here
+    # Khởi tạo một cửa sổ Tkinter ẩn
+    global global_BTTD_DF, global_HS_MienNam_DF
+    root = tk.Tk()
+    root.withdraw()  # Ẩn cửa sổ chính
+    display_message("--Chọn folder BTTĐ--","")
+    folder_path = filedialog.askdirectory(title="Chọn thư mục chứa dữ liệu BTTĐ")
+    if not folder_path:
+        display_message("Không có thư mục nào được chọn.", "")
+    else:
+        # Danh sách để lưu dữ liệu
+        data = []
+        # Duyệt qua tất cả các tệp trong thư mục
+        for filename in os.listdir(folder_path):
+            file_path = os.path.join(folder_path, filename)
+            if os.path.isfile(file_path):
+                # Đọc tệp excel và thêm vào danh sách
+                if filename.endswith('.xlsx'):
+                    df = pl.read_excel(file_path)
+                    data.append(df)
+
+        # Kết hợp tất cả các DataFrame thành một DataFrame duy nhất
+        if data:
+            global_BTTD_DF = pl.concat(data)
+            display_message("Dữ liệu đã được tải thành công.", global_BTTD_DF.shape)
+        else:
+            display_message("Không có tệp dữ liệu nào được tìm thấy trong thư mục BTTĐ.", "")
+
+    # Chọn file BTTH_MienNam
+    global global_df_MienNam_Template_chuan
+    display_message("--Chọn file BTTH_MienNam--","")
+    file1_path = filedialog.askopenfilename(title="Chọn file 1 (có sheet BTTH_MienNam)", filetypes=[("Excel files", "*.xlsx;*.xls")])
+    if not file1_path:
+        print("Không có file 1 nào được chọn.")
+        return None, None, None, None, None
+    # Đọc sheet BTTH_MienNam từ file 1
+    global_df_MienNam_Template_chuan = pl.read_excel(file1_path, sheet_name='BTTH_MienNam')
+
+    # Chọn file HS_Khác
+    global global_df_File_D99_MEM, global_df_HS_Khong_tinh_KPI, global_df_File_D99_BSCT, global_df_HS_KHCN
+    display_message("--Chọn file Các loại HS KHÁC--","")
+    file2_path = filedialog.askopenfilename(title="Chọn file 2 (có các sheet D99_MEM, HS_KhongTinhKPI, D99_BSCT, KHCN)", filetypes=[("Excel files", "*.xlsx;*.xls")])
+    if not file2_path:
+        print("Không có file 2 nào được chọn.")
+        return None, None, None, None, None
+    # Đọc các sheet từ file 2
+    global_df_File_D99_MEM = pl.read_excel(file2_path, sheet_name='D99_MEM')
+    global_df_HS_Khong_tinh_KPI = pl.read_excel(file2_path, sheet_name='HS_KhongTinhKPI')
+    global_df_File_D99_BSCT = pl.read_excel(file2_path, sheet_name='D99_BSCT')
+    global_df_HS_KHCN = pl.read_excel(file2_path, sheet_name='KHCN')
+    
+
+    if global_BTTD_DF.is_empty() or global_df_MienNam_Template_chuan.is_empty() or global_df_File_D99_MEM.is_empty() or global_df_HS_Khong_tinh_KPI.is_empty() or global_df_File_D99_BSCT.is_empty() or global_df_HS_KHCN.is_empty():
+        print("Không có dữ liệu nào được chọn.")
+        return
+    else:
+        label2.config(text="2. BTTĐ, HS_MienNam Loaded!")
+        output_area.insert(tk.END, "--> Folder BTTD loaded!\n--> File HS_MienNam: Sheet D99_MEM,KoTinhKPI,BSCT,KHCN loaded!\n\n")
+    update_button_states()
+
+def add_file3():
+    global global_KPI_TungCB_DF, global_File_ALL_DLBT_ChuanTemp, global_df_HS_KHCN, global_df_HS_Khong_tinh_KPI
+    global global_KPI_DF, global_CB_KoKPI_DF, global_KPI_TungCB_DF
+
+    if global_KPI_TungCB_DF is None:  # Kiểm tra xem global_KPI_TungCB_DF có giá trị hay không
+        output_area.insert(tk.END, "--> Chưa có thông tin HR\n--> Add HR_Info trước khi chọn file BC_BTTH\n")
+        global_KPI_DF, global_CB_KoKPI_DF, global_KPI_TungCB_DF = Hr_info()
+        if global_KPI_DF.is_empty() or global_CB_KoKPI_DF.is_empty() or global_KPI_TungCB_DF.is_empty():
+            print("Không có file nào được chọn.")
+            return
+        else:
+            label0.config(text="1. HR_File Loaded!")
+            output_area.insert(tk.END, "--> File HR_Info: Sheet KPI, CB_Khong_Tinh_KPI, KPI_Tung_CB loaded!\n\n")
+        
+        # Mở hộp thoại chọn file
+        root = tk.Tk()
+        root.withdraw()  # Ẩn cửa sổ chính
+        output_area.insert(tk.END, "--> Select BC_BTTH\n")
+        file_path = filedialog.askopenfilename(title="Chọn file BC_BTTH_Processed", filetypes=[("Excel files", "*.xlsx;*.xls")])
+
+        if file_path:  # Kiểm tra xem người dùng đã chọn file hay chưa
+            # Đọc dữ liệu từ file đã chọn và thêm vào global_File_ALL_DLBT_ChuanTemp
+            global_File_ALL_DLBT_ChuanTemp = pl.read_excel(file_path, sheet_name="BTTH_MienNam_Calculated")
+            global_df_HS_KHCN = pl.read_excel(file_path, sheet_name="HS_KHCN")
+            global_df_HS_Khong_tinh_KPI = pl.read_excel(file_path, sheet_name="HS_Khong_tinh_KPI") 
+            # Đọc file Excel# Kết hợp với DataFrame hiện tại
+            label3.config(text="3. BC_BTTH loaded!")
+            output_area.insert(tk.END, "--> BC_BTTH loaded!\n")
+                       
+    else:
+        # Mở hộp thoại chọn file
+        root = tk.Tk()
+        root.withdraw()  # Ẩn cửa sổ chính
+        output_area.insert(tk.END, "--> Select BC_BTTH\n")
+        file_path = filedialog.askopenfilename(title="Chọn file BC_BTTH_Processed", filetypes=[("Excel files", "*.xlsx;*.xls")])
+
+        if file_path:  # Kiểm tra xem người dùng đã chọn file hay chưa
+            # Đọc dữ liệu từ file đã chọn và thêm vào global_File_ALL_DLBT_ChuanTemp
+            global_File_ALL_DLBT_ChuanTemp = pl.read_excel(file_path, sheet_name="BTTH_MienNam_Calculated")
+            global_df_HS_KHCN = pl.read_excel(file_path, sheet_name="HS_KHCN")
+            global_df_HS_Khong_tinh_KPI = pl.read_excel(file_path, sheet_name="HS_Khong_tinh_KPI") 
+            # Đọc file Excel# Kết hợp với DataFrame hiện tại
+            label3.config(text="3. BC_BTTH loaded!")
+            output_area.insert(tk.END, "--> BC_BTTH loaded!\n")
+
+    update_button_states()        
+
+def update_button_states():
+    button1['state'] = 'normal' if label1.cget("text") != "" else 'disabled'
+    button2['state'] = 'normal' if label2.cget("text") != "" else 'disabled'
+    button3['state'] = 'normal' if (label3.cget("text") != "" and label0.cget("text") != "") else 'disabled'
 
 
 # Create main window
 root = tk.Tk()
 root.title("BTTH Application")
-root.geometry("1200x600")
+root.geometry("1200x650+0+0")
 root.configure(bg='#f0f0f0')
 
 # Create a frame for buttons
@@ -414,28 +945,62 @@ button_style = {
     "activeforeground": "white"
 }
 
-button1 = tk.Button(button_frame, text="Processing PBI_WEB Data", command=Processing_PBI_WEB_data, **button_style)
+# Original buttons
+button1 = tk.Button(button_frame, text="1. Processing PBI_WEB Data", command=Processing_PBI_WEB_data, state='disabled', **button_style)
 button1.pack(pady=10)
 
-button2 = tk.Button(button_frame, text="Calculate BTTH Data", command=calculate_btth_data, **button_style)
+button2 = tk.Button(button_frame, text="2. Calculate BTTH Data", command=calculate_btth_data, state='disabled', **button_style)
 button2.pack(pady=10)
 
-button3 = tk.Button(button_frame, text="KPI Report", command=kpi_report, **button_style)
+button3 = tk.Button(button_frame, text="3. Calculate KPI", command=kpi_report, state='disabled', **button_style)
 button3.pack(pady=10)
 
-button4 = tk.Button(button_frame, text="Plot", command=plot, **button_style)
+button4 = tk.Button(button_frame, text="4. Plot", command=plot, state='disabled', **button_style)
 button4.pack(pady=10)
+
+# New file buttons
+file_button_style = {
+    "bg": "#28a745",  # Green color for file buttons
+    "activebackground": "#218838",
+    "width": 20,      # Set the width of the button
+    "height": 2       # Set the height of the button
+}
+
+
+button_add1 = tk.Button(button_frame, text="Add Source Step 1", command=add_file1,  **file_button_style)
+button_add1.pack(pady=5,padx=5)
+
+button_add2 = tk.Button(button_frame, text="Add Source Step 2", command=add_file2, **file_button_style)
+button_add2.pack(pady=5,padx=5)
+
+button_add3 = tk.Button(button_frame, text="Add Source Step 3", command=add_file3, **file_button_style)
+button_add3.pack(pady=5,padx=5)
+
+button_add0 = tk.Button(button_frame, text="Add HR Info", command=add_file_HR, **file_button_style)
+button_add0.pack(pady=5,padx=5)
+
+# Create labels for file status
+label_style = {
+    "font": ("Helvetica", 10),
+    "bg": '#f0f0f0',
+    "fg": "#28a745"
+}
+label0 = tk.Label(button_frame, text="", **label_style)
+label0.pack(pady=5,padx=5)
+
+label1 = tk.Label(button_frame, text="", **label_style)
+label1.pack(pady=5,padx=5)
+
+label2 = tk.Label(button_frame, text="", **label_style)
+label2.pack(pady=5,padx=5)
+
+label3 = tk.Label(button_frame, text="", **label_style)
+label3.pack(pady=5,padx=5)
 
 # Create a scrolled text area for output
 output_area = scrolledtext.ScrolledText(output_frame, width=120, height=30, font=("Helvetica", 12))
 output_area.insert(tk.END, "--- WELOME TO KPI APPLICATION ---\n\n")
 output_area.pack()
 
-# Run the main loop
-try:
-    root.mainloop()
-    
-except Exception as e:
-    print(f"An error occurred: {e}")
-finally:
-    root.destroy()  # Đảm bảo rằng ứng dụng được đóng
+# Start the application
+root.mainloop()

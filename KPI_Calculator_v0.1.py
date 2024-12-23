@@ -1132,7 +1132,7 @@ def update_button_states():
 # Create main window
 root = tk.Tk()
 root.title("KPI Calculator Application")
-root.geometry("1200x700+0+0")
+root.geometry("1200x701+0+0")
 root.configure(bg='#2C3E50')
 
 # Tạo style chung

@@ -993,7 +993,7 @@ def add_file_HR():
         return
     else:
         label0.config(text="0. HR_File Loaded!")
-        output_area.insert(tk.END, "--> File HR_Info: Sheet KPI, CB_Khong_Tinh_KPI, KPI_Tung_CB loaded!\n\n")
+        output_area.insert(tk.END, "--> FILE HR_INFO: SHEET KPI, CB_KHONG_TINH_KPI, KPI_TUNG_CB LOADED!\n\n")
     update_button_states()
 
 def add_file1():
@@ -1072,7 +1072,7 @@ def add_file2():
         return
     else:
         label2.config(text="2. BTTĐ, HS_MienNam Loaded!")
-        output_area.insert(tk.END, "--> FILE HS_MIENNAM: SHEET D99_MEM,KOTINHKPI,BSCT,KHCN LOADED!\n")
+        output_area.insert(tk.END, "--> FILE HS_MIENNAM: SHEET D99_MEM, KOTINHKPI, BSCT, KHCN LOADED!\n")
     update_button_states()
 
 def add_file3():
@@ -1109,7 +1109,7 @@ def add_file3():
         # Mở hộp thoại chọn file
         root = tk.Tk()
         root.withdraw()  # Ẩn cửa sổ chính
-        output_area.insert(tk.END, "--> Select BC_BTTH\n")
+        output_area.insert(tk.END, "--> Select BC_BTTH_Processed\n")
         file_path = filedialog.askopenfilename(title="Chọn file BC_BTTH_Processed", filetypes=[("Excel files", "*.xlsx;*.xls")])
 
         if file_path:  # Kiểm tra xem người dùng đã chọn file hay chưa
@@ -1131,16 +1131,52 @@ def update_button_states():
 
 # Create main window
 root = tk.Tk()
-root.title("BTTH Application")
-root.geometry("1200x650+0+0")
-root.configure(bg='#f0f0f0')
+root.title("KPI Calculator Application")
+root.geometry("1200x680+0+0")
+root.configure(bg='#2C3E50')
+
+# Tạo style chung
+style = {
+    "bg": "#2C3E50",
+    "fg": "#ECF0F1"
+}
 
 # Create a frame for buttons
-button_frame = tk.Frame(root, bg='#f0f0f0')
+button_frame = tk.Frame(root, bg='#34495E', padx=20, pady=20) #PADX
 button_frame.pack(side=tk.LEFT, padx=15, pady=15)
 
+# Tiêu đề với màu sắc nổi bật
+title_label = tk.Label(root, 
+                      text="KPI Calculator Application",
+                      font=("Montserrat", 28, "bold"),
+                      bg='#2C3E50',
+                      fg='#3498DB')
+title_label.pack(pady=20)
+
+# Style cho các nút chính
+button_style = {
+    "width": 24,
+    "height": 2,
+    "font": ("Roboto", 12),
+    "bg": "#3498DB",
+    "fg": "white",
+    "activebackground": "#2980B9",
+    "activeforeground": "white",
+    "border": 0,
+    "cursor": "hand2",
+    "relief": "flat"
+}
+
+# Tạo các nút với hiệu ứng hover
+def on_enter(e):
+    e.widget['background'] = '#2980B9' if e.widget['background'] == '#3498DB' else '#219A52'
+
+def on_leave(e):
+    e.widget['background'] = '#3498DB' if e.widget['background'] == '#2980B9' else '#27AE60'
+
+
 # Tạo một frame cho khu vực hiển thị output
-output_frame = tk.Frame(root, bg='#f0f0f0')
+output_frame = tk.Frame(root, bg='#34495E', padx=20, pady=20)
 output_frame.pack(side=tk.RIGHT, padx=20, pady=0)
 
 # Tạo Text widget với scrollbar
@@ -1156,33 +1192,26 @@ output_area.config(yscrollcommand=scrollbar.set)
 
 
 
-# Create title
-title_label = tk.Label(root, text="BTTH Application", font=("Helvetica", 24), bg='#f0f0f0')
-title_label.pack(pady=20)
-
-# Create buttons with improved design
-button_style = {
-    "width": 24,
-    "height": 2,
-    "font": ("Helvetica", 12),
-    "bg": "#007BFF",
-    "fg": "white",
-    "activebackground": "#0056b3",
-    "activeforeground": "white"
-}
-
 # Original buttons
 button1 = tk.Button(button_frame, text="1. Processing PBI_WEB Data", command=Processing_PBI_WEB_data, state='disabled', **button_style)
 button1.pack(pady=10)
+button1.bind("<Enter>", on_enter)
+button1.bind("<Leave>", on_leave)
 
 button2 = tk.Button(button_frame, text="2. Calculate BTTH Data", command=calculate_btth_data, state='disabled', **button_style)
 button2.pack(pady=10)
+button2.bind("<Enter>", on_enter)
+button2.bind("<Leave>", on_leave)
 
 button3 = tk.Button(button_frame, text="3. Calculate KPI", command=kpi_report, state='disabled', **button_style)
 button3.pack(pady=10)
+button3.bind("<Enter>", on_enter)
+button3.bind("<Leave>", on_leave)
 
 button4 = tk.Button(button_frame, text="4. Plot", command=plot, state='active', **button_style)
 button4.pack(pady=10)
+button4.bind("<Enter>", on_enter)
+button4.bind("<Leave>", on_leave)
 
 # New file buttons
 file_button_style = {
@@ -1194,23 +1223,40 @@ file_button_style = {
 
 
 button_add1 = tk.Button(button_frame, text="Add Source Step 1", command=add_file1,  **file_button_style)
-button_add1.pack(pady=5,padx=5)
+button_add1.pack(pady=8)
+button_add1.bind("<Enter>", on_enter)
+button_add1.bind("<Leave>", on_leave)
 
 button_add2 = tk.Button(button_frame, text="Add Source Step 2", command=add_file2, **file_button_style)
-button_add2.pack(pady=5,padx=5)
+button_add2.pack(pady=8)
+button_add2.bind("<Enter>", on_enter)
+button_add2.bind("<Leave>", on_leave)
 
 button_add3 = tk.Button(button_frame, text="Add Source Step 3", command=add_file3, **file_button_style)
-button_add3.pack(pady=5,padx=5)
+button_add3.pack(pady=8)
+button_add3.bind("<Enter>", on_enter)
+button_add3.bind("<Leave>", on_leave)
 
 button_add0 = tk.Button(button_frame, text="Add HR Info", command=add_file_HR, **file_button_style)
-button_add0.pack(pady=5,padx=5)
+button_add0.pack(pady=8)
+button_add0.bind("<Enter>", on_enter)
+button_add0.bind("<Leave>", on_leave)
 
-# Create labels for file status
+# Style cho labels
 label_style = {
-    "font": ("Helvetica", 10),
-    "bg": '#f0f0f0',
-    "fg": "#28a745"
+    "font": ("Roboto", 10),
+    "bg": '#34495E',
+    "fg": "#2ECC71"
 }
+# Output area với màu sắc hiện đại
+output_area = scrolledtext.ScrolledText(
+    output_frame,
+    width=120,
+    height=30,
+    font=("Roboto", 12),
+    bg="#ECF0F1",
+    fg="#2C3E50"
+)
 label0 = tk.Label(button_frame, text="", **label_style)
 label0.pack(pady=5,padx=5)
 
@@ -1225,8 +1271,8 @@ label3.pack(pady=5,padx=5)
 
 # Create a scrolled text area for output
 output_area = scrolledtext.ScrolledText(output_frame, width=120, height=30, font=("Helvetica", 12))
-output_area.insert(tk.END, "--- WELOME TO KPI APPLICATION Version 0.1 Beta---\n\n   *Hướng dẫn. Bạn cần thực hiện các bước sau:\n   Add source tương ứng từng bước. Lưu ý HR cần cho bước 2 3 4\n\n")
-output_area.pack()
+output_area.insert(tk.END, "--- WELCOME TO KPI APPLICATION Version 0.1 Beta ---\n\n   *Hướng dẫn. Bạn cần thực hiện các bước sau:\n   Add source tương ứng từng bước. Lưu ý HR cần cho bước 2 3 4\n\n")
+output_area.pack(fill=tk.BOTH, expand=True)
 
 # Start the application
 root.mainloop()

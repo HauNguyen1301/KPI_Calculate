@@ -1,0 +1,2 @@
+# Cài đặt các thư viện Python
+pip install tkinter openpyxl pandas numpy pandas-datareader matplotlib

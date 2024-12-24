@@ -1271,8 +1271,12 @@ label3.pack(pady=5,padx=5)
 
 # Create a scrolled text area for output
 output_area = scrolledtext.ScrolledText(output_frame, width=120, height=30, font=("Helvetica", 12))
-output_area.insert(tk.END, "--- WELCOME TO KPI APPLICATION Version 0.1 Beta ---\n\n   *Hướng dẫn. Bạn cần thực hiện các bước sau:\n   Add source tương ứng từng bước. Lưu ý HR cần cho bước 2 3 4\n\n")
+welcome_message = "--- WELCOME TO KPI APPLICATION Version 0.1 Beta ---\n\n"
+welcome_message += "   Hướng dẫn. Bạn cần thực hiện các bước sau:\n"
+welcome_message += "   Add source tương ứng từng bước. *Lưu ý HR_Info cần cho bước 2 3 4\n\n"
+output_area.insert(tk.END, welcome_message)
 output_area.pack(fill=tk.BOTH, expand=True)
 
 # Start the application
 root.mainloop()
+

@@ -158,7 +158,7 @@ def Processing_PBI_WEB_data():
         filter_condition |= pl.col("HAU_QUA").str.to_lowercase().str.contains(x.lower())
     filter_condition &= pl.col("SO_HS").str.contains("D99")
     # Add the new condition for TIEN_BT_GQ
-    filter_condition &= pl.col("TIEN_BT_GQ") > 9999999 ##Update to v1.0.1
+    filter_condition &= pl.col("TIEN_BT_GQ") <  9999999 ##Update to v1.0.1
 
     df_HsMem = BTTH_MienNam_DF.filter(filter_condition)
 
@@ -708,6 +708,64 @@ def kpi_report():
     KPI_DF_ForCBBT = KPI_DF.drop(["Tổng sau quy đổi", "Tỉ lệ % theo KPI_QT063", "KPI sau vượt 120%_QT063", "KPI"])
 
 
+    ##Xử lý file NLC2
+    CB_KoKPI_DF = global_CB_KoKPI_DF
+    File_ALL_DLBT_ChuanTemp = global_File_ALL_DLBT_ChuanTemp
+    File_ALL_DLBT_ChuanTemp = File_ALL_DLBT_ChuanTemp.filter(
+        pl.col("Hồ sơ không tính KPI").is_null()
+    )
+    NLC2_ALL_HS_df = File_ALL_DLBT_ChuanTemp.filter(
+        pl.col("Cán bộ giải quyết bồi thường").is_in(CB_KoKPI_DF["Ten"])
+    )
+    # Define holidays (you can add more dates as needed)
+    holidays = pd.to_datetime(['2024-09-03', '2024-09-02', '2024-05-01', '2024-04-30', 
+                            '2024-04-29', '2024-04-18', '2024-02-14', '2024-02-13', 
+                            '2024-02-12', '2024-02-11', '2024-02-10', '2024-02-09', 
+                            '2024-02-08', '2024-01-01', '2023-09-04', '2023-09-03', 
+                            '2023-09-02', '2023-09-01', '2023-05-03', '2023-05-02', 
+                            '2023-05-01', '2023-04-30', '2023-04-29', '2023-01-26', 
+                            '2023-01-25', '2023-01-24', '2023-01-23', '2023-01-22', 
+                            '2023-01-21', '2023-01-20', '2023-01-02', '2023-01-01', 
+                            '2023-01-02' ])
+    NLC2_ALL_HS_df_pandas = NLC2_ALL_HS_df.to_pandas()
+    NLC2_ALL_HS_df_pandas['Hour'] = NLC2_ALL_HS_df_pandas['Giờ lập'].str[:2].astype(int)
+    NLC2_ALL_HS_df_pandas['GioLamViec'] = NLC2_ALL_HS_df_pandas['Hour'].apply(lambda x: 'Out' if x > 16 or x < 8 or x == 12 else 'In')
+    NLC2_ALL_HS_df_pandas.drop(columns=['Hour'])
+    ##Xử lý ngày lập
+    NLC2_ALL_HS_df_pandas['NgayLamViec / NgayNghi'] = NLC2_ALL_HS_df_pandas['Ngày lập tờ trình'].apply(lambda x: 'Non-WorkingDay' if x == '2024-05-04' or x in holidays or pd.to_datetime(x).weekday() in [5, 6] else 'WorkingDay')
+    ##Xử lý Trong/Ngoài giờ
+    NLC2_ALL_HS_df_pandas['Phan_Loai_Trong/Ngoai_Gio'] = NLC2_ALL_HS_df_pandas.apply(lambda row: 'Ngoài Giờ' if row['NgayLamViec / NgayNghi'] == 'Non-WorkingDay' or row['GioLamViec'] == 'Out' else 'Trong Giờ', axis=1)
+
+
+    ##Xử lý file LĐ Tổ
+    File_ALL_DLBT_ChuanTemp = global_File_ALL_DLBT_ChuanTemp
+    File_ALL_DLBT_ChuanTemp_pandas = File_ALL_DLBT_ChuanTemp.to_pandas()
+    danh_sach_cb_duyet = ["Lê Thanh Thiên", "Nguyễn Quỳnh Hương", "Nguyễn Thị Ngọc Thúy", 
+                        "Phạm Thị Kim Dung", "Trần Thị Hồng Quế", "Vũ Thị Xuân Lan", "Văn Như Ngọc"]
+
+    LanhDaoTo_DF_temp = File_ALL_DLBT_ChuanTemp_pandas[
+        File_ALL_DLBT_ChuanTemp_pandas['CB_DUYET'].isin(danh_sach_cb_duyet)
+    ]
+    #Lọc người duyệt != CBBT
+    LanhDaoTo_DF = LanhDaoTo_DF_temp[(File_ALL_DLBT_ChuanTemp_pandas['CB_DUYET'] != File_ALL_DLBT_ChuanTemp_pandas['Cán bộ giải quyết bồi thường'])]
+    #Lọc bỏ hồ sơ không tính KPI
+    LanhDaoTo_DF = LanhDaoTo_DF[LanhDaoTo_DF['Hồ sơ không tính KPI'] != 'X']
+    #Xử lý trong ngoài giờ 
+    ##Xử lý giờ lập
+    LanhDaoTo_DF['Hour'] = LanhDaoTo_DF['Giờ lập'].str[:2].astype(int)
+    LanhDaoTo_DF['GioLamViec'] = LanhDaoTo_DF['Hour'].apply(lambda x: 'Out' if x > 16 or x < 8 or x == 12 else 'In')
+    LanhDaoTo_DF.drop(columns=['Hour'])
+    ##Xử lý ngày lập
+    LanhDaoTo_DF['NgayLamViec / NgayNghi'] = LanhDaoTo_DF['Ngày lập tờ trình'].apply(lambda x: 'Non-WorkingDay' if x == '2024-05-04' or x in holidays or pd.to_datetime(x).weekday() in [5, 6] else 'WorkingDay')
+    ##Xử lý Trong/Ngoài giờ
+    LanhDaoTo_DF['Phan_Loai_Trong/Ngoai_Gio'] = LanhDaoTo_DF.apply(lambda row: 'Ngoài Giờ' if row['NgayLamViec / NgayNghi'] == 'Non-WorkingDay' or row['GioLamViec'] == 'Out' else 'Trong Giờ', axis=1)
+    LanhDaoTo_DF['Phan_loai_HS'] = LanhDaoTo_DF.apply(lambda row: 'BTTD' if row['BTTD'] == 'BTTĐ' else ('Nội trú' if row['Loại HS'] == 2 else 'Ngoại trú'), axis=1)
+
+    LanhDaoTo_DF = pl.from_pandas(LanhDaoTo_DF)
+
+
+    # pivot_table_LanhDaoTo_DF = pd.pivot_table(LanhDaoTo_DF, values='Số GYCTT', index='CB_DUYET', columns='Phan_loai_HS', aggfunc='count')
+
     # Export the DataFrame to an Excel file
     def export_to_excel(df, default_filename="KPI_Report.xlsx"):
         root = tk.Tk()
@@ -723,7 +781,11 @@ def kpi_report():
     # Sử dụng hàm
     export_to_excel(KPI_DF, "KPI_Report.xlsx")
     export_to_excel(KPI_DF_ForCBBT, "KPI_Report_ForCBBT.xlsx")
-    display_message("DỮ LIỆU ĐÃ ĐƯỢC TÍNH TOÁN VÀ XUẤT RA FILE EXCEL KPI_REPORT.XLSX.", "VUI LÒNG KIỂM TRA FILE EXCEL ĐÃ LƯU.")
+    export_to_excel(NLC2_ALL_HS_df, "NLC2_ALL_HS_df.xlsx")
+    export_to_excel(LanhDaoTo_DF, "LanhDaoTo_DF.xlsx")
+    # Display success message
+    display_message("DỮ LIỆU ĐÃ ĐƯỢC TÍNH TOÁN VÀ XUẤT RA FILE EXCEL.", "VUI LÒNG KIỂM TRA FILE EXCEL ĐÃ LƯU.")
+
 
 
 
@@ -866,11 +928,11 @@ def BTTD_Folder():
         return None
 
 def filter_df_HS_MEM_thieuHashtag(df, loai_HS_D99, hashtagmem, hashtagcung):
-    min_tien_bt_gq = 10000001
+
 
     # Filter the DataFrame using Polars
     df_D99MemThieuHASHTAG = df.filter(
-        (pl.col("TIEN_BT_GQ") < min_tien_bt_gq) &
+        (pl.col("TIEN_BT_GQ") < 10000001) &
         (pl.col("SO_HS").str.to_lowercase().str.contains(loai_HS_D99.lower())) &
         (~pl.col("HAU_QUA").str.to_lowercase().str.contains(hashtagmem.lower())) &
         (~pl.col("HAU_QUA").str.to_lowercase().str.contains(hashtagcung.lower()))
@@ -974,6 +1036,7 @@ def select_files_BTTH():
 
     return df_MienNam_Template_chuan, df_File_D99_MEM, df_HS_Khong_tinh_KPI, df_File_D99_BSCT, df_HS_KHCN
      # Hiển thị thông báo
+
 
 def select_file_path(default_name="output.xlsx"): ##XUẤT FILE EXCEL
     root = tk.Tk()
@@ -1287,7 +1350,7 @@ label3.pack(pady=5,padx=5)
 
 # Create a scrolled text area for output
 output_area = scrolledtext.ScrolledText(output_frame, width=120, height=30, font=("Helvetica", 12))
-welcome_message = "--- WELCOME TO KPI APPLICATION Version 1.0.1 Final ---\n\n"
+welcome_message = "--- WELCOME TO KPI APPLICATION Version 1.0.2 Final ---\n\n"
 welcome_message += "   Hướng dẫn. Bạn cần thực hiện các bước sau:\n"
 welcome_message += "   Add source tương ứng từng bước. *Lưu ý HR_Info cần cho bước 2 3 4\n\n"
 output_area.insert(tk.END, welcome_message)

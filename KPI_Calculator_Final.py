@@ -781,8 +781,8 @@ def kpi_report():
     # Sử dụng hàm
     export_to_excel(KPI_DF, "KPI_Report.xlsx")
     export_to_excel(KPI_DF_ForCBBT, "KPI_Report_ForCBBT.xlsx")
-    export_to_excel(NLC2_ALL_HS_df, "NLC2_ALL_HS_df.xlsx")
-    export_to_excel(LanhDaoTo_DF, "LanhDaoTo_DF.xlsx")
+    export_to_excel(NLC2_ALL_HS_df, "NLC2_BTTH.xlsx")
+    export_to_excel(LanhDaoTo_DF, "LanhDaoTo.xlsx")
     # Display success message
     display_message("DỮ LIỆU ĐÃ ĐƯỢC TÍNH TOÁN VÀ XUẤT RA FILE EXCEL.", "VUI LÒNG KIỂM TRA FILE EXCEL ĐÃ LƯU.")
 
